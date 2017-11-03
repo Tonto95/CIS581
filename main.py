@@ -2,6 +2,7 @@ import image_loader
 import cv2
 import numpy as np
 from find_correspondances import find_correspondances
+from cylindrical_warp import cylindrical_warp
 
 # Takes in a string path and the dimensions of the picture arrays
 def master(path, size):
@@ -15,4 +16,13 @@ if __name__ == '__main__':
 
 	pics = master(path, size)
 
-	matches = find_correspondances(pics[0], pics[1])
+	f = (1224*4.15)/(4.8)
+	img_warped = cylindrical_warp(pics[0],f)
+
+	cv2.imshow("cylindrical projection", img_warped)
+	cv2.waitKey()
+
+
+
+	# matches = find_correspondances(pics[0], pics[1])
+
