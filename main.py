@@ -40,7 +40,7 @@ if __name__ == '__main__':
 	# matches = find_correspondances(warped_pics[0], warped_pics[1])
 
 
-	imgplot = plt.imshow(img)
+	imgplot = plt.imshow(result[1])
 	plt.show()
 
 

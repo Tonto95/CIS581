@@ -128,13 +128,6 @@ class AlignImagesRansac(object):
         # Find key points in base image for motion estimation
         base_features, base_descs = detector.detectAndCompute(base_img, None)
     
-        # Create new key point list
-        # key_points = []
-        # for kp in base_features:
-        #     key_points.append((int(kp.pt[0]),int(kp.pt[1])))
-        # utils.showImage(base_img, key_points, scale=(0.2, 0.2), timeout=0)
-        # cv2.destroyAllWindows()
-    
         # Parameters for nearest-neighbor matching
         FLANN_INDEX_KDTREE = 1  # bug: flann enums are missing
         flann_params = dict(algorithm = FLANN_INDEX_KDTREE, 
