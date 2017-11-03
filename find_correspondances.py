@@ -19,7 +19,7 @@ def extract_features(img):
 
 
 	sift_obj = cv2.xfeatures2d.SIFT_create()
-	descriptors, keypoints = sift_obj.detectAndComput(img_gray, None)
+	keypoints, descriptors = sift_obj.detectAndCompute(img_gray, None)
 
 	return descriptors, keypoints
 
@@ -34,6 +34,10 @@ def extract_features(img):
 
 '''
 def find_correspondances(img1, img2):
+	# Convert images to cv images
+	img1 = np.array(img1, dtype = np.uint8)
+	img2 = np.array(img2, dtype = np.uint8)
+
 	# Extract the features from both images
 	des1, kp1 = extract_features(img1)
 	des2, kp2 = extract_features(img2)
@@ -44,11 +48,24 @@ def find_correspondances(img1, img2):
 
 	flann = cv2.FlannBasedMatcher(index_params, search_params)
 
-	matches = flann.knnMatch(des1, des2, k=2)
+	matches = flann.knnMatch(np.asarray(des1,np.float32),np.asarray(des2,np.float32),k=2)
+
+	# Need to draw only good matches, so create a mask
+	matchesMask = [[0,0] for i in xrange(len(matches))]
+
+	# ratio test as per Lowe's paper
+	for i,(m,n) in enumerate(matches):
+		if m.distance < 0.7*n.distance:
+			matchesMask[i]=[1,0]
+
+	draw_params = dict(matchColor = (0,255,0),
+                   singlePointColor = (255,0,0),
+                   matchesMask = matchesMask,
+                   flags = 0)
 
 	# For testing: Display the images with correspondences 
 	img3 = cv2.drawMatchesKnn(img1,kp1,img2,kp2,matches,None,**draw_params)
 	cv2.imshow("correspondences", img3)
-	cv2.waitKey()
+	# cv2.waitKey()
 
 	return matches
