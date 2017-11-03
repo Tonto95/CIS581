@@ -12,3 +12,4 @@ def stitch(img_list, H_list):
 		start_p = start_p/start_p[-1]
 
 		# Transform the matrix
+		

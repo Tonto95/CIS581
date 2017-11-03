@@ -34,18 +34,14 @@ if __name__ == '__main__':
 	for i in range(2):
 		warped_pics[i,:,:,:] = cylindrical_warp(pics[i],f)
 
-	result = stitcher.stitch((np.array(warped_pics[0], d_type = np.uint8), np.array(warped_pics[1], d_type = np.uint8)))
+	result = stitcher.stitch((np.array(warped_pics[0], dtype = np.uint8), np.array(warped_pics[1], dtype = np.uint8)))
 
 
 	# matches = find_correspondances(warped_pics[0], warped_pics[1])
 
 
-
-
-
-
-	cv2.imshow("cylindrical projection", result[1])
-	cv2.waitKey()
+	imgplot = plt.imshow(img)
+	plt.show()
 
 
 
