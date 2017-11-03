@@ -18,8 +18,8 @@ import math
 '''
 def get_cylindrical_coordinates(x,y,f,x_c,y_c):
 	# Calculate the parameters theta and h
-	theta = np.arcsin(curr_x/(np.sqrt(curr_x*curr_x + f*f)));
-	h = curr_y/(np.sqrt(curr_x*curr_x + f*f));
+	theta = np.arcsin(x/(np.sqrt(x*x + f*f)));
+	h = y/(np.sqrt(x*x + f*f));
 
 	# Calculate the x and y cylindrical prjections
 	x_cyl = f*theta + x_c
