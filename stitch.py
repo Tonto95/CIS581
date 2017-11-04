@@ -1,140 +1,239 @@
-import cv2
-import numpy as np
+# 
+# Offsetting 
+# the key: http://stackoverflow.com/questions/6087241/opencv-warpperspective
+#
 
-def findDimensions(self, image, homography):
-	base_p1 = np.ones(3, np.float32)
-	base_p2 = np.ones(3, np.float32)
-	base_p3 = np.ones(3, np.float32)
-	base_p4 = np.ones(3, np.float32)
+# For the ocean panorama, SIFT found a lot more features. This 
+# resulted in a much better stitching. (SURF only found 4 and it
+# warped considerably)
 
-	(y, x) = image.shape[:2]
+# Test cases
+# python stitch.py Image1.jpg Image2.jpg -a SIFT
+# python stitch.py Image2.jpg Image1.jpg -a SIFT
+# python stitch.py ../stitcher/images/image_5.png ../stitcher/images/image_6.png -a SIFT
+# python stitch.py ../stitcher/images/image_6.png ../stitcher/images/image_5.png -a SIFT
+# python stitch.py ../vashon/01.JPG ../vashon/02.JPG -a SIFT
+# python stitch.py panorama_vashon2.jpg ../vashon/04.JPG -a SIFT
+# python stitch.py ../books/02.JPG ../books/03.JPG -a SIFT
 
-	base_p1[:2] = [0,0]
-	base_p2[:2] = [x,0]
-	base_p3[:2] = [0,y]
-	base_p4[:2] = [x,y]
+# coding: utf-8
+import cv2, numpy as np
+import math
+import argparse as ap
+import image_loader
 
-	max_x = None
-	max_y = None
-	min_x = None
-	min_y = None
+DEBUG = False
 
-	for pt in [base_p1, base_p2, base_p3, base_p4]:
 
-		hp = np.matrix(homography, np.float32) * np.matrix(pt, np.float32).T
-		
-		hp_arr = np.array(hp, np.float32)
+## 1. Extract SURF keypoints and descriptors from an image. [4] ----------
+def extract_features(image, surfThreshold=1000, algorithm='SURF'):
+    # Convert image to grayscale (for SURF detector).
+    image_gs = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
 
-		normal_pt = np.array([hp_arr[0]/hp_arr[2], hp_arr[1]/hp_arr[2]], np.float32)
+    if DEBUG:
+        cv2.imwrite("out/gray.jpg", image_gs)
 
-	if ( max_x == None or normal_pt[0,0] > max_x ):
-		max_x = normal_pt[0,0]
+    # Detect SURF features and compute descriptors.
+    detector = cv2.xfeatures2d.SIFT_create()  # what happens with SIFT?
 
-		if ( max_y == None or normal_pt[1,0] > max_y ):
-			max_y = normal_pt[1,0]
+    (keypoints, descriptors) = detector.detectAndCompute(image_gs, None)
 
-		if ( min_x == None or normal_pt[0,0] < min_x ):
-			min_x = normal_pt[0,0]
+    return (keypoints, descriptors)
 
-		if ( min_y == None or normal_pt[1,0] < min_y ):
-			min_y = normal_pt[1,0]
 
-	min_x = min(0, min_x)
-	min_y = min(0, min_y)
+## 2. Find corresponding features between the images. [2] ----------------
+def find_correspondences(keypoints1, descriptors1, keypoints2, descriptors2):
+    ## Find corresponding features.
+    match = match_flann(descriptors1, descriptors2)
 
-    return (min_x, min_y, max_x, max_y)
-def stitch(base_img, next_img, H): 
-    
-    (min_x, min_y, max_x, max_y) = findDimensions(next_img, H_inv)
-    
-	# Adjust max_x and max_y by base img size
-	max_x = max(max_x, base_img.shape[1])
-	max_y = max(max_y, base_img.shape[0])
-    
-	move_h = np.matrix(np.identity(3), np.float32)
-    
-	if ( min_x < 0 ):
-		move_h[0,2] += -min_x
-		max_x += -min_x
-    
-	if ( min_y < 0 ):
-		move_h[1,2] += -min_y
-		max_y += -min_y
-    
-	print "Homography: \n", H
-	print "Inverse Homography: \n", H_inv
-	print "Min Points: ", (min_x, min_y)
-    
-	mod_inv_h = move_h * H_inv
-    
-	img_w = int(math.ceil(max_x))
-	img_h = int(math.ceil(max_y))
-    
-	print "New Dimensions: ", (img_w, img_h)
-    
-	# Warp the new image given the homography from the old image
-	base_img_warp = cv2.warpPerspective(base_img_rgb, move_h, (img_w, img_h))
-	print "Warped base image"
-    
-	# utils.showImage(base_img_warp, scale=(0.2, 0.2), timeout=5000)
-	# cv2.destroyAllWindows()
-    
-	next_img_warp = cv2.warpPerspective(closestImage['rgb'], mod_inv_h, (img_w, img_h))
-	print "Warped next image"
+    points1 = np.array([keypoints1[i].pt for (i, j) in match], np.float32)
+    points2 = np.array([keypoints2[j].pt for (i, j) in match], np.float32)
 
-    
-    # Put the base image on an enlarged palette
-    enlarged_base_img = np.zeros((img_h, img_w, 3), np.uint8)
-    
-    print "Enlarged Image Shape: ", enlarged_base_img.shape
-    print "Base Image Shape: ", base_img_rgb.shape
-	print "Base Image Warp Shape: ", base_img_warp.shape
-    
-	# enlarged_base_img[y:y+base_img_rgb.shape[0],x:x+base_img_rgb.shape[1]] = base_img_rgb
-    # enlarged_base_img[:base_img_warp.shape[0],:base_img_warp.shape[1]] = base_img_warp
-    
-    # Create a mask from the warped image for constructing masked composite
-    (ret,data_map) = cv2.threshold(cv2.cvtColor(next_img_warp, cv2.COLOR_BGR2GRAY), 0, 255, cv2.THRESH_BINARY)
-    
-	enlarged_base_img = cv2.add(enlarged_base_img, base_img_warp, 
-		mask=np.bitwise_not(data_map), 
-		dtype=cv2.CV_8U)
-    
-	# Now add the warped image
-	final_img = cv2.add(enlarged_base_img, next_img_warp, 
-		dtype=cv2.CV_8U)
-    
-    # Crop off the black edges
-	final_gray = cv2.cvtColor(final_img, cv2.COLOR_BGR2GRAY)
-	_, thresh = cv2.threshold(final_gray, 1, 255, cv2.THRESH_BINARY)
-	contours, _ = cv2.findContours(thresh, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_NONE)
-	print "Found %d contours..." % (len(contours))
-    
-	max_area = 0
-	best_rect = (0,0,0,0)
-    
-    for cnt in contours:
-		x,y,w,h = cv2.boundingRect(cnt)
-    
-		deltaHeight = h-y
-		deltaWidth = w-x
-    
-		area = deltaHeight * deltaWidth
-    
-		if ( area > max_area and deltaHeight > 0 and deltaWidth > 0):
-			max_area = area
-			best_rect = (x,y,w,h)
-    
-		if ( max_area > 0 ):
-			print "Maximum Contour: ", max_area
-			print "Best Rectangle: ", best_rect
-    
-		final_img_crop = final_img[best_rect[1]:best_rect[1]+best_rect[3],
-			best_rect[0]:best_rect[0]+best_rect[2]]
-		final_img = final_img_crop
+    return (points1, points2)
 
-		# Write out the current round
-		final_filename = "%s/%d.JPG" % (self.output_dir, round)
-		cv2.imwrite(final_filename, final_img)
 
-	return final_img
+## 3. Calculate the size and offset of the stitched panorama. [5] --------
+
+
+
+def calculate_size(size_image1, size_image2, homography):
+    (h1, w1) = size_image1[:2]
+    (h2, w2) = size_image2[:2]
+
+    # remap the coordinates of the projected image onto the panorama image space
+    top_left = np.dot(homography, np.asarray([0, 0, 1]))
+    top_right = np.dot(homography, np.asarray([w2, 0, 1]))
+    bottom_left = np.dot(homography, np.asarray([0, h2, 1]))
+    bottom_right = np.dot(homography, np.asarray([w2, h2, 1]))
+
+    if DEBUG:
+        print top_left
+        print top_right
+        print bottom_left
+        print bottom_right
+
+    # normalize
+    top_left = top_left / top_left[2]
+    top_right = top_right / top_right[2]
+    bottom_left = bottom_left / bottom_left[2]
+    bottom_right = bottom_right / bottom_right[2]
+
+    if DEBUG:
+        print np.int32(top_left)
+        print np.int32(top_right)
+        print np.int32(bottom_left)
+        print np.int32(bottom_right)
+
+    pano_left = int(min(top_left[0], bottom_left[0], 0))
+    pano_right = int(max(top_right[0], bottom_right[0], w1))
+    W = pano_right - pano_left
+
+    pano_top = int(min(top_left[1], top_right[1], 0))
+    pano_bottom = int(max(bottom_left[1], bottom_right[1], h1))
+    H = pano_bottom - pano_top
+
+    size = (W, H)
+
+    if DEBUG:
+        print 'Panodimensions'
+        print pano_top
+        print pano_bottom
+
+    # offset of first image relative to panorama
+    X = int(min(top_left[0], bottom_left[0], 0))
+    Y = int(min(top_left[1], top_right[1], 0))
+    offset = (-X, -Y)
+
+    if DEBUG:
+        print 'Calculated size:'
+        print size
+        print 'Calculated offset:'
+        print offset
+
+    return (size, offset)
+
+
+## 4. Combine images into a panorama. [4] --------------------------------
+def merge_images(image1, image2, homography, size, offset, keypoints):
+    ## TODO: Combine the two images into one.
+    ## TODO: (Overwrite the following 5 lines with your answer.)
+    (h1, w1) = image1.shape[:2]
+    (h2, w2) = image2.shape[:2]
+
+    panorama = np.zeros((size[1], size[0], 3), np.uint8)
+
+    (ox, oy) = offset
+
+    translation = np.matrix([
+        [1.0, 0.0, ox],
+        [0, 1.0, oy],
+        [0.0, 0.0, 1.0]
+    ])
+
+    if DEBUG:
+        print homography
+    homography = translation * homography
+    # print homography
+
+    # draw the transformed image2
+    panorama = cv2.warpPerspective(image2, homography, size)
+    a = np.sum(panorama)
+
+    panorama[oy:h1 + oy, ox:ox + w1] = image1
+    # panorama[:h1, :w1] = image1
+
+    ## TODO: Draw the common feature keypoints.
+
+    return panorama
+
+
+def merge_images_translation(image1, image2, offset):
+    ## Put images side-by-side into 'image'.
+    (h1, w1) = image1.shape[:2]
+    (h2, w2) = image2.shape[:2]
+    (ox, oy) = offset
+    ox = int(ox)
+    oy = int(oy)
+    oy = 0
+
+    image = np.zeros((h1 + oy, w1 + ox, 3), np.uint8)
+
+    image[:h1, :w1] = image1
+    image[:h2, ox:ox + w2] = image2
+
+    return image
+
+
+##---- No need to change anything below this point. ----------------------
+
+
+def match_flann(desc1, desc2, r_threshold=0.12):
+    'Finds strong corresponding features in the two given vectors.'
+    ## Adapted from <http://stackoverflow.com/a/8311498/72470>.
+
+    ## Build a kd-tree from the second feature vector.
+    FLANN_INDEX_KDTREE = 1  # bug: flann enums are missing
+    flann = cv2.FlannBasedMatcher({'algorithm': FLANN_INDEX_KDTREE, 'trees': 4}, dict(checks=50))
+
+    ## For each feature in desc1, find the two closest ones in desc2.
+    match = flann.knnMatch(desc1, desc2, k=2)  # bug: need empty {}
+
+    # Need to draw only good matches, so create a mask
+    matchesMask = [[0, 0] for i in xrange(len(match))]
+
+    # ratio test as per Lowe's paper
+    for i, (m, n) in enumerate(match):
+        if m.distance < 0.7 * n.distance:
+            matchesMask[i] = [1, 0]
+    return matchesMask
+
+
+def draw_correspondences(image1, image2, points1, points2):
+    'Connects corresponding features in the two images using yellow lines.'
+
+    ## Put images side-by-side into 'image'.
+    (h1, w1) = image1.shape[:2]
+    (h2, w2) = image2.shape[:2]
+    image = np.zeros((max(h1, h2), w1 + w2, 3), np.uint8)
+    image[:h1, :w1] = image1
+    image[:h2, w1:w1 + w2] = image2
+
+    ## Draw yellow lines connecting corresponding features.
+    for (x1, y1), (x2, y2) in zip(np.int32(points1), np.int32(points2)):
+        cv2.line(image, (x1, y1), (x2 + w1, y2), (2555, 0, 255), lineType=cv2.CV_AA)
+
+    return image
+
+
+if __name__ == "__main__":
+    path = "/Users/Tonto/Documents/School/CIS/CIS519/CIS581/test_imgs"
+    size = np.array([1632, 1224, 3])
+    pictures = image_loader.loader(path, size)
+
+    ## Load images.
+    image1 = np.asarray(pictures[0], dtype=np.uint8)
+    image2 = np.asarray(pictures[1], dtype=np.uint8)
+
+    ## Detect features and compute descriptors.
+    (keypoints1, descriptors1) = extract_features(image1, algorithm='SIFT')
+    (keypoints2, descriptors2) = extract_features(image2, algorithm='SIFT')
+
+    (points1, points2) = find_correspondences(keypoints1, descriptors1, keypoints2, descriptors2)
+    print len(points1), "features matched"
+
+    ## Visualise corresponding features.
+    #correspondences = draw_correspondences(image1, image2, points1, points2)
+    #cv2.imwrite("out/correspondences.jpg", correspondences)
+    #print 'Wrote correspondences.jpg'
+
+    ## Find homography between the views.
+    (homography, _) = cv2.findHomography(points2, points1, cv2.RANSAC, 5.0)
+
+    ## Calculate size and offset of merged panorama.
+    (size, offset) = calculate_size(image1.shape, image2.shape, homography)
+    print "output size: %ix%i" % size
+
+    ## Finally combine images into a panorama.
+    panorama = merge_images(image1, image2, homography, size, offset, (points1, points2))
+    cv2.imwrite("out/panorama.jpg", panorama)
+    print 'Wrote panorama.jpg'
