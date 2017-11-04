@@ -6,7 +6,7 @@ from cylindrical_warp import cylindrical_warp
 import matplotlib.pyplot as plt
 import matplotlib.image as mpimg
 from homography import homographize
-from stitch import stitch
+import stitch
 
 
 # Takes in a string path and the dimensions of the picture arrays
@@ -24,34 +24,36 @@ if __name__ == '__main__':
 	f = (1224*4.15)/(4.8)
 
 	warped_pics = np.zeros((pics.shape[0], int(f), int(f),3))
-	# warped_pics = pics
-
-	stitcher = cv2.createStitcher(False)
+	warped_pics = pics
 
 
-	for i in range(3):
-		warped_pics[i,:,:,:] = cylindrical_warp(pics[i],f)
+	# for i in range(3):
+	# 	warped_pics[i,:,:,:] = cylindrical_warp(pics[i],f)
 
-	for i in range(2):
+	n = warped_pics.shape[0]
+	n = n - 1
+	im1 = warped_pics[0]
+
+	for i in range(1):
 		if i == 0:
-			src_pts,dst_pts = find_correspondances(warped_pics[i], warped_pics[i+1])
-			H, mask = homographize(src_pts, dst_pts)
+			src_pts,dst_pts = find_correspondances(im1, warped_pics[n-i])
+			H, _ = homographize(src_pts, dst_pts)
 
-			final_img = stitch(warped_pics[i], warped_pics[i+1], H)
+			size, offset = stitch.calculate_size(im1, warped_pics[n-i], H)
+			# print size, offset
+			final_img = stitch.merge_images(im1, warped_pics[n-i], H, size, offset)
+			# final_img = stitch.stitch(im1, warped_pics[n-i], H, int(offset[0]), int(offset[1]), 0)
+
 		else:
-			src_pts,dst_pts = find_correspondances(final_img, warped_pics[i+1])
-			H, mask = homographize(src_pts, dst_pts)
+			src_pts,dst_pts = find_correspondances(final_img, warped_pics[n-i])
+			H, _ = homographize(src_pts, dst_pts)
 
-			final_img = stitch(final_img, warped_pics[i+1], H)
-			# result = stitcher.stitch((np.array(final_img, dtype = np.uint8), np.array(warped_pics[i+1], dtype = np.uint8)))
-
-
-	# result = stitcher.stitch((np.array(warped_pics[0], dtype = np.uint8), np.array(warped_pics[1], dtype = np.uint8)))
+			size, offset = stitch.calculate_size(final_img, warped_pics[n-i], H)
+			final_img = stitch.merge_images(final_img, warped_pics[n-i], H, size, offset)
+			# final_img = stitch(final_img, warped_pics[i+1], H)
 
 
-	# matches = find_correspondances(warped_pics[0], warped_pics[1])
-
-	imgplot = plt.imshow(final_img)
+	imgplot = plt.imshow(np.array(final_img,dtype = np.uint8))
 	plt.show()
 	# cv2.imshow("correspondences", final_img)
 	# cv2.waitKey()
