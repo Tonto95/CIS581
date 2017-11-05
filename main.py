@@ -15,8 +15,6 @@ def main():
 	size = np.array([1632, 1224, 3])
 	pictures = image_loader.loader(path, size)
 
-	#warped_pics = np.zeros((pictures.shape[0], int(f), int(f), 3))
-
 	src_pts,dst_pts = find_correspondances(pictures[1], pictures[0])
 
 	H, mask = homographize(dst_pts, src_pts)
@@ -25,29 +23,22 @@ def main():
 	(size, offset) = calculate_size(pictures[1].shape, pictures[0].shape, H)
 	print "output size: %ix%i" % size
 
-	## Finally combine images into a panorama.
-	panorama = merge_images(pictures[1], pictures[0], H, size, offset, (src_pts, dst_pts))
-	#panorama = merge_images_translation(pictures[1], pictures[0], offset)
-	#cv2.imwrite("/Users/Tonto/Documents/School/CIS/CIS519/CIS581/panorama.jpg", panorama)
-	#plt.imshow(panorama, cmap='spring')
-	#plt.show()
+	main_image = pictures[0]
 
-	main_image = pictures[15]
-
-	for i in reversed(range(0, 15)):
-		src_pts, dst_pts = find_correspondances(main_image, pictures[i])
+	pics = []
+	for i in range(1, pictures.shape[0]):
+		src_pts, dst_pts = find_correspondances(pictures[i], main_image)
 
 		H, mask = homographize(dst_pts, src_pts)
 
 		## Calculate size and offset of merged panorama.
-		(size, offset) = calculate_size(main_image.shape, pictures[i].shape, H)
+		(size, offset) = calculate_size(pictures[i].shape, main_image.shape, H)
 		print "output size: %ix%i" % size
 
 		## Finally combine images into a panorama.
-		main_image = merge_images(main_image, pictures[i], H, size, offset, (src_pts, dst_pts))
-		#panorama = merge_images_translation(pictures[1], pictures[0], offset)
+		main_image = merge_images(pictures[i], main_image, H, size, offset, (src_pts, dst_pts))
 
-	cv2.imwrite("/Users/Tonto/Documents/School/CIS/CIS519/CIS581/panorama.jpg", panorama)
+	cv2.imwrite("/Users/Tonto/Documents/School/CIS/CIS519/CIS581/panorama2.png", main_image)
 	plt.imshow(main_image, cmap='spring')
 	plt.show()
 

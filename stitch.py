@@ -1,21 +1,3 @@
-# 
-# Offsetting 
-# the key: http://stackoverflow.com/questions/6087241/opencv-warpperspective
-#
-
-# For the ocean panorama, SIFT found a lot more features. This 
-# resulted in a much better stitching. (SURF only found 4 and it
-# warped considerably)
-
-# Test cases
-# python stitch.py Image1.jpg Image2.jpg -a SIFT
-# python stitch.py Image2.jpg Image1.jpg -a SIFT
-# python stitch.py ../stitcher/images/image_5.png ../stitcher/images/image_6.png -a SIFT
-# python stitch.py ../stitcher/images/image_6.png ../stitcher/images/image_5.png -a SIFT
-# python stitch.py ../vashon/01.JPG ../vashon/02.JPG -a SIFT
-# python stitch.py panorama_vashon2.jpg ../vashon/04.JPG -a SIFT
-# python stitch.py ../books/02.JPG ../books/03.JPG -a SIFT
-
 # coding: utf-8
 import cv2, numpy as np
 import math
@@ -23,36 +5,6 @@ import argparse as ap
 import image_loader
 
 DEBUG = False
-
-
-## 1. Extract SURF keypoints and descriptors from an image. [4] ----------
-def extract_features(image, surfThreshold=1000, algorithm='SURF'):
-    # Convert image to grayscale (for SURF detector).
-    image_gs = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
-
-    if DEBUG:
-        cv2.imwrite("out/gray.jpg", image_gs)
-
-    # Detect SURF features and compute descriptors.
-    detector = cv2.xfeatures2d.SIFT_create()  # what happens with SIFT?
-
-    (keypoints, descriptors) = detector.detectAndCompute(image_gs, None)
-
-    return (keypoints, descriptors)
-
-
-## 2. Find corresponding features between the images. [2] ----------------
-def find_correspondences(keypoints1, descriptors1, keypoints2, descriptors2):
-    ## Find corresponding features.
-    match = match_flann(descriptors1, descriptors2)
-
-    points1 = np.array([keypoints1[i].pt for (i, j) in match], np.float32)
-    points2 = np.array([keypoints2[j].pt for (i, j) in match], np.float32)
-
-    return (points1, points2)
-
-
-## 3. Calculate the size and offset of the stitched panorama. [5] --------
 
 
 
@@ -118,9 +70,6 @@ def merge_images(image1, image2, homography, size, offset, keypoints):
     ## TODO: Combine the two images into one.
     ## TODO: (Overwrite the following 5 lines with your answer.)
     (h1, w1) = image1.shape[:2]
-    (h2, w2) = image2.shape[:2]
-
-    panorama = np.zeros((size[1], size[0], 3), np.uint8)
 
     (ox, oy) = offset
 
@@ -137,103 +86,7 @@ def merge_images(image1, image2, homography, size, offset, keypoints):
 
     # draw the transformed image2
     panorama = cv2.warpPerspective(image2, homography, size)
-    a = np.sum(panorama)
 
     panorama[oy:h1 + oy, ox:ox + w1] = image1
-    # panorama[:h1, :w1] = image1
-
-    ## TODO: Draw the common feature keypoints.
 
     return panorama
-
-
-def merge_images_translation(image1, image2, offset):
-    ## Put images side-by-side into 'image'.
-    (h1, w1) = image1.shape[:2]
-    (h2, w2) = image2.shape[:2]
-    (ox, oy) = offset
-    ox = int(ox)
-    oy = int(oy)
-    oy = 0
-
-    image = np.zeros((h1 + oy, w1 + ox, 3), np.uint8)
-
-    image[:h1, :w1] = image1
-    image[:h2, ox:ox + w2] = image2
-
-    return image
-
-
-##---- No need to change anything below this point. ----------------------
-
-
-def match_flann(desc1, desc2, r_threshold=0.12):
-    'Finds strong corresponding features in the two given vectors.'
-    ## Adapted from <http://stackoverflow.com/a/8311498/72470>.
-
-    ## Build a kd-tree from the second feature vector.
-    FLANN_INDEX_KDTREE = 1  # bug: flann enums are missing
-    flann = cv2.FlannBasedMatcher({'algorithm': FLANN_INDEX_KDTREE, 'trees': 4}, dict(checks=50))
-
-    ## For each feature in desc1, find the two closest ones in desc2.
-    match = flann.knnMatch(desc1, desc2, k=2)  # bug: need empty {}
-
-    # Need to draw only good matches, so create a mask
-    matchesMask = [[0, 0] for i in xrange(len(match))]
-
-    # ratio test as per Lowe's paper
-    for i, (m, n) in enumerate(match):
-        if m.distance < 0.7 * n.distance:
-            matchesMask[i] = [1, 0]
-    return matchesMask
-
-
-def draw_correspondences(image1, image2, points1, points2):
-    'Connects corresponding features in the two images using yellow lines.'
-
-    ## Put images side-by-side into 'image'.
-    (h1, w1) = image1.shape[:2]
-    (h2, w2) = image2.shape[:2]
-    image = np.zeros((max(h1, h2), w1 + w2, 3), np.uint8)
-    image[:h1, :w1] = image1
-    image[:h2, w1:w1 + w2] = image2
-
-    ## Draw yellow lines connecting corresponding features.
-    for (x1, y1), (x2, y2) in zip(np.int32(points1), np.int32(points2)):
-        cv2.line(image, (x1, y1), (x2 + w1, y2), (2555, 0, 255), lineType=cv2.CV_AA)
-
-    return image
-
-
-if __name__ == "__main__":
-    path = "/Users/Tonto/Documents/School/CIS/CIS519/CIS581/test_imgs"
-    size = np.array([1632, 1224, 3])
-    pictures = image_loader.loader(path, size)
-
-    ## Load images.
-    image1 = np.asarray(pictures[0], dtype=np.uint8)
-    image2 = np.asarray(pictures[1], dtype=np.uint8)
-
-    ## Detect features and compute descriptors.
-    (keypoints1, descriptors1) = extract_features(image1, algorithm='SIFT')
-    (keypoints2, descriptors2) = extract_features(image2, algorithm='SIFT')
-
-    (points1, points2) = find_correspondences(keypoints1, descriptors1, keypoints2, descriptors2)
-    print len(points1), "features matched"
-
-    ## Visualise corresponding features.
-    #correspondences = draw_correspondences(image1, image2, points1, points2)
-    #cv2.imwrite("out/correspondences.jpg", correspondences)
-    #print 'Wrote correspondences.jpg'
-
-    ## Find homography between the views.
-    (homography, _) = cv2.findHomography(points2, points1, cv2.RANSAC, 5.0)
-
-    ## Calculate size and offset of merged panorama.
-    (size, offset) = calculate_size(image1.shape, image2.shape, homography)
-    print "output size: %ix%i" % size
-
-    ## Finally combine images into a panorama.
-    panorama = merge_images(image1, image2, homography, size, offset, (points1, points2))
-    cv2.imwrite("out/panorama.jpg", panorama)
-    print 'Wrote panorama.jpg'
