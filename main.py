@@ -6,57 +6,40 @@ from cylindrical_warp import cylindrical_warp
 import matplotlib.pyplot as plt
 import matplotlib.image as mpimg
 from homography import homographize
-import stitch
-
+from stitch import calculate_size, merge_images, merge_images_translation
 
 # Takes in a string path and the dimensions of the picture arrays
-def master(path, size):
-    pictures = image_loader.loader(path, size)
-    return pictures
+def main():
+	path = "/Users/Tonto/Documents/School/CIS/CIS519/CIS581/test_imgs"
+	size = np.array([1632, 1224, 3])
+	pictures = image_loader.loader(path, size)
 
+	src_pts,dst_pts = find_correspondances(pictures[1], pictures[0])
+
+	H, mask = homographize(dst_pts, src_pts)
+
+	## Calculate size and offset of merged panorama.
+	(size, offset) = calculate_size(pictures[1].shape, pictures[0].shape, H)
+	print "output size: %ix%i" % size
+
+	main_image = pictures[0]
+
+	pics = []
+	for i in range(1, pictures.shape[0]):
+		src_pts, dst_pts = find_correspondances(pictures[i], main_image)
+
+		H, mask = homographize(dst_pts, src_pts)
+
+		## Calculate size and offset of merged panorama.
+		(size, offset) = calculate_size(pictures[i].shape, main_image.shape, H)
+		print "output size: %ix%i" % size
+
+		## Finally combine images into a panorama.
+		main_image = merge_images(pictures[i], main_image, H, size, offset, (src_pts, dst_pts))
+
+	cv2.imwrite("/Users/Tonto/Documents/School/CIS/CIS519/CIS581/panorama2.png", main_image)
+	plt.imshow(main_image, cmap='spring')
+	plt.show()
 
 if __name__ == '__main__':
-	path = "/Users/Ahmed/Documents/CIS 581/CIS581Project3/Mini Project/CIS581/test_imgs"
-	size = np.array([1632,1224,3])
-
-	pics = master(path, size)
-
-	f = (1224*4.15)/(4.8)
-
-	warped_pics = np.zeros((pics.shape[0], int(f), int(f),3))
-	warped_pics = pics
-
-
-	# for i in range(3):
-	# 	warped_pics[i,:,:,:] = cylindrical_warp(pics[i],f)
-
-	n = warped_pics.shape[0]
-	n = n - 1
-	im1 = warped_pics[0]
-
-	for i in range(1):
-		if i == 0:
-			src_pts,dst_pts = find_correspondances(im1, warped_pics[n-i])
-			H, _ = homographize(src_pts, dst_pts)
-
-			size, offset = stitch.calculate_size(im1, warped_pics[n-i], H)
-			# print size, offset
-			final_img = stitch.merge_images(im1, warped_pics[n-i], H, size, offset)
-			# final_img = stitch.stitch(im1, warped_pics[n-i], H, int(offset[0]), int(offset[1]), 0)
-
-		else:
-			src_pts,dst_pts = find_correspondances(final_img, warped_pics[n-i])
-			H, _ = homographize(src_pts, dst_pts)
-
-			size, offset = stitch.calculate_size(final_img, warped_pics[n-i], H)
-			final_img = stitch.merge_images(final_img, warped_pics[n-i], H, size, offset)
-			# final_img = stitch(final_img, warped_pics[i+1], H)
-
-
-	imgplot = plt.imshow(np.array(final_img,dtype = np.uint8))
-	plt.show()
-	# cv2.imshow("correspondences", final_img)
-	# cv2.waitKey()
-
-
-
+	main()
