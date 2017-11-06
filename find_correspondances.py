@@ -4,7 +4,7 @@
 '''
 import cv2
 import numpy as np
-
+from stitch import calculate_size, merge_images, crop
 
 MIN_MATCHES_COUNT = 4
 
@@ -56,23 +56,19 @@ def find_correspondances(img1, img2):
 	# store all the good matches as per Lowe's ratio test.
 	good = []
 	for m,n in matches:
-		if m.distance < 0.7*n.distance:
+		if m.distance < 0.6*n.distance:
 			good.append(m)
-
 	# draw_params = dict(matchColor = (0,255,0),
  #                   singlePointColor = (255,0,0),
- #                   matchesMask = matchesMask,
+ #                   matchesMask = good,
  #                   flags = 0)
 
-	# For testing: Display the images with correspondences 
-	# img3 = cv2.drawMatchesKnn(img1,kp1,img2,kp2,matches,None,**draw_params)
-	# cv2.imshow("correspondences", img3)
-	# cv2.waitKey()
+	# # For testing: Display the images with correspondences 
+	# img3 = cv2.drawMatchesKnn(img1,kp1,img2,kp2,good,None, flags=2)
+	# cv2.imwrite("/Users/Ahmed/Documents/CIS 581/CIS581Project3/Mini Project/CIS581/feature_matching.jpg", crop(np.array(img3,dtype = np.uint8)))
 
-	if len(matches) > MIN_MATCHES_COUNT:
+	if len(good) > MIN_MATCHES_COUNT:
 		src_pts = np.float32([ kp1[m.queryIdx].pt for m in good ]).reshape(-1,1,2)
 		dst_pts = np.float32([ kp2[m.trainIdx].pt for m in good ]).reshape(-1,1,2)
-
-	# print src_points, dst_pts
 
 	return src_pts, dst_pts
